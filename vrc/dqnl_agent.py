@@ -14,9 +14,7 @@ class DQNLAgent:
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
 
-        self._replay_memory = ReplayMemory(
-            self._dqn, capacity=1_000_000, cache_size=160_000,
-            discount=0.99, lambd=kwargs['lambd'])
+        self._replay_memory = ReplayMemory(self._dqn, discount=0.99, lambd=kwargs['lambd'])
 
         self._prepopulate = 50_000
         self._train_freq = 4
@@ -54,8 +52,6 @@ class DQNLAgent:
             return
 
         if t % self._target_update_freq == 1:
-            epsilon = self._epsilon_schedule(t)
-            self._replay_memory.refresh_cache(epsilon)
-
+            self._replay_memory.refresh_cache()
             for minibatch in self._replay_memory.iterate_cache(self._batches_per_epoch, self._batch_size):
                 self._dqn.train(*minibatch)
