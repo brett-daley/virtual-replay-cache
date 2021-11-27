@@ -62,18 +62,19 @@ class ReplayMemoryDQNL:
             dones = self._dones[rmem_indices]
             returns = compute_pengs_qlambda_returns(rewards, qvalues, dones, self._discount, self._lambd)
 
-            # Slice off the extra sample that was used for bootstrapping
-            states, rmem_indices, returns = states[:-1], rmem_indices[:-1], returns[:-1]
+            # Store state/action/returns for minibatch sampling later
+            # (Also slice off the extra sample that was used for bootstrapping)
+            cache_slice = slice(k * self._block_size, (k + 1) * self._block_size)
+            self._store_block(cache_slice, block_indices[:-1], states[:-1], returns[:-1])
 
-            # Store states/actions/returns for minibatch sampling later
-            sl = slice(k * self._block_size, (k + 1) * self._block_size)
-            self._cached_states[sl] = states
-            self._cached_actions[sl] = self._actions[rmem_indices]
-            self._cached_returns[sl] = returns
+    def _store_block(self, cache_slice, block_indices, states, returns):
+        self._cached_states[cache_slice] = states
+        self._cached_actions[cache_slice] = self._actions[self._absolute_index(block_indices)]
+        self._cached_returns[cache_slice] = returns
 
     def iterate_cache(self, for_n_batches, batch_size):
         for j in self._iterate_cache_indices(for_n_batches, batch_size):
-            yield self._create_minibatch(j)
+            yield self._make_minibatch(j)
 
     def _iterate_cache_indices(self, for_n_batches, batch_size):
         # We must be able to sample at least one minibatch
@@ -97,8 +98,8 @@ class ReplayMemoryDQNL:
             yield cache_indices[start:end]
             start += batch_size
 
-    def _create_minibatch(self, cache_indices):
-        j = cache_indices
+    def _make_minibatch(self, sampled_indices):
+        j = sampled_indices
         return (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
 
     def _get_states(self, indices):
